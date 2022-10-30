@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+import argparse
+import json
+
+import pdfkit # pip3 install pdfkit
+# pip3 install PyPDF2
+from PyPDF2 import PdfFileReader, PdfFileWriter, PageObject
+# from PyPDF2.pdf import PageObject
+
+def debug(*args):
+    print(*args)
+    pass
+
+def get_simples():
+    with open("list_sas.json","r") as f:
+        content=f.read()
+
+    lines=json.loads(content)
+    simples=[]
+    for line in lines:
+        debug("line",line)
+        if len(line)==3:
+            simples.append(line)
+    return simples
+
+def display_table(simples,indexes):
+    out=[]
+    out.append('''<!DOCTYPE html>
+    <html lang="en">
+    <head>
+    <meta charset="utf-8">
+    </head>
+    <body>''')
+    
+    out.append('<table style="font-size: 1.0em">')
+
+    for simple in simples:
+        (one,two,three)=indexes
+        out.append("<tr><td>"+str(simple[one])+"</td><td>"+str(simple[two])+"</td><td>"+str(simple[three])+"</td></tr>")
+    out.append("</table>")
+    out.append('</body></html>')
+    
+    filename="table"+str(one)+str(two)+str(three)
+    with open(filename+".html","w") as f:
+        f.write("\n".join(out))
+
+    pdfkit.from_file(filename+".html",filename+".pdf")
+
+
+
+    # now PDFnup
+    reader = PdfFileReader(open(filename+".pdf",'rb'))
+    writer = PdfFileWriter()
+
+    for pageNo in range(0,reader.getNumPages(),2):
+        print("pageNo",pageNo)
+        page_1 = reader.getPage(pageNo)
+        page_2 = reader.getPage(pageNo+1)
+        
+        #Creating a new file double the size of the original
+        page_x=page_1.mediaBox.getWidth()
+        page_y=page_1.mediaBox.getHeight()
+        print("(page_x,page_y)",page_x,page_y)
+        translated_page = PageObject.createBlankPage(None, page_1.mediaBox.getWidth(), page_1.mediaBox.getHeight())
+        
+        #Adding the pages to the new empty page
+        
+        # https://pypdf2.readthedocs.io/en/latest/modules/PageObject.html
+        scale=1
+        tx=float(page_x)/2
+        ty=0
+        expand=False
+        
+        translated_page.mergePage(page_1)
+        translated_page.mergeScaledTranslatedPage(page_2, scale, tx, ty, expand)
+    
+        writer.addPage(translated_page)
+    
+    with open(filename+"_two.pdf", 'wb') as f:
+        writer.write(f)
+    
+def mysort(line):
+    return line[1]
+
+def main(opts):
+    simples=get_simples()
+    display_table(simples,[0,1,2])
+    simples=sorted(simples,key=mysort)
+    display_table(simples,[1,0,2])
+
+def parse_cli():
+    
+    parser = argparse.ArgumentParser(description="""
+https://stackoverflow.com/questions/23359083/how-to-convert-webpage-into-pdf-by-using-python
+pdfnup --nup 2x1 --suffix test file.pdf
+https://stackoverflow.com/questions/59348564/concatenating-multiple-page-pdf-into-single-page-pdf
+https://gist.github.com/dreua/ab99543b7cc1b670419d1d3054a3a30e
+""",formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument('-c','--cache', help="Get from cache",action="store_true")
+    opts = parser.parse_args()
+    return opts
+
+
+if __name__ == "__main__":
+    opts=parse_cli()
+    main(opts)
